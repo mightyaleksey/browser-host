@@ -1,0 +1,30 @@
+{
+  "name": "browser-host",
+  "version": "0.0.1",
+  "license": "MIT",
+  "bin": "bin.js",
+  "files": [
+    "bundle",
+    "bin.js"
+  ],
+  "devDependencies": {
+    "@babel/core": "7.4.3",
+    "@babel/preset-env": "7.4.3",
+    "rollup": "1.10.0",
+    "rollup-plugin-babel": "4.3.2",
+    "rollup-plugin-commonjs": "9.3.4",
+    "rollup-plugin-node-builtins": "2.1.2",
+    "rollup-plugin-node-globals": "1.4.0",
+    "rollup-plugin-node-resolve": "4.2.3",
+    "tape": "4.10.1"
+  },
+  "dependencies": {
+    "minimist": "^1.2.0",
+    "puppeteer": "^1.14.0",
+    "xhr-write-stream": "^0.1.2"
+  },
+  "scripts": {
+    "bundle": "rollup -c rollup.bundle.js",
+    "test": "rollup -c rollup.test.js --silent | node bin.js"
+  }
+}
