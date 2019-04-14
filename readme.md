@@ -1,6 +1,6 @@
 # browser-host
 
-The library creates a browser environment for executing code. Something that you miss to test browser specific things. For example, to test `fetch`, `AbortController` and other things.
+The **browser-host** utility creates a browser environment for executing code. Something that you miss to test browser specific things. For example, to test `fetch`, `AbortController` and other things.
 
 ## Example
 write a test:
@@ -28,11 +28,18 @@ ok 1 should be equal
 # ok
 ```
 
-Note that you need to bundle your test file via [browserify](http://browserify.org) or any other bundler in order to run its code in the browser environment.
+Note that if you use any external modules, probably you need to bundle your test file via [browserify](http://browserify.org) or any other bundler first in order to run its contents in the browser environment.
 
 ## Usage
 ```
 $ browser-host [entry] [options]
+
+Description:
+
+  The browser-host utility reads file and executes its contents (javascript code)
+  in the browser environment. The environment is created
+  by headless chrome browser (via puppeteer). If file is a signle dash ('-')
+  or absent, browser-host reads from the standard input.
 
 Options:
 
@@ -40,6 +47,11 @@ Options:
   -b, --browser   run Chrome / Chromium browser in non-headless mode
   --html          print resulting html only
   --mock          path to module to handle requests for mocking a dynamic back-end
+
+Examples:
+
+  $ echo "console.log('hello, world!')" | browser-host
+  $ echo "console.log('hello, world!')" > a.js; browser-host a.js
 ```
 
 ## Install

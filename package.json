@@ -1,6 +1,6 @@
 {
   "name": "browser-host",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "license": "MIT",
   "bin": "bin.js",
   "files": [
@@ -19,12 +19,13 @@
     "tape": "4.10.1"
   },
   "dependencies": {
+    "ecstatic": "^4.0.1",
     "minimist": "^1.2.0",
     "puppeteer": "^1.14.0",
     "xhr-write-stream": "^0.1.2"
   },
   "scripts": {
-    "bundle": "rollup -c rollup.bundle.js",
+    "bundle": "rollup -c rollup.bundle.js && cp browser/favicon* bundle/",
     "test": "rollup -c rollup.test.js --silent | node bin.js"
   }
 }

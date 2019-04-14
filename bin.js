@@ -6,12 +6,23 @@ process.title = 'browser-host';
 const USAGE = `
   $ browser-host [entry] [options]
 
+  Description:
+
+    The browser-host utility reads file and executes its contents (javascript code)
+    in the browser environment. The environment is created
+    by headless chrome browser (via puppeteer). If file is a signle dash ('-')
+    or absent, browser-host reads from the standard input.
+
   Options:
 
     -h, --help      print usage
     -b, --browser   run Chrome / Chromium browser in non-headless mode
     --html          print resulting html only
     --mock          path to module to handle requests for mocking a dynamic back-end
+
+  Examples:
+
+    $ echo "console.log('hello, world!')" | browser-host
 `;
 
 const fs = require('fs');
@@ -19,6 +30,7 @@ const http = require('http');
 const net = require('net');
 const path = require('path');
 const puppeteer = require('puppeteer');
+const ecstatic = require('ecstatic');
 const util = require('util');
 const xws = require('xhr-write-stream');
 
@@ -39,18 +51,14 @@ if (argv.help) {
 }
 
 const mock = loadMockFn(argv.mock);
-const entry = argv._.length > 0
+const entry = argv._.length > 0 && argv._[0] !== '-'
   ? fs.createReadStream(path.resolve(argv._[0]), 'utf8')
   : process.stdin;
 
 main(entry); // catch possible error
 
 async function main(inputStream) {
-  const envpath = path.resolve(__dirname, 'bundle/env.js');
-  const [ envbundle, input ] = await Promise.all([
-    readStream(fs.createReadStream(envpath, 'utf8')),
-    readStream(inputStream),
-  ]);
+  const input = await readStream(inputStream);
 
   if (argv.html) {
     console.log(generateHtml(envbundle, input));
@@ -58,6 +66,13 @@ async function main(inputStream) {
   }
 
   const ws = xws();
+  const serve = ecstatic({
+    autoIndex: false,
+    root: path.resolve(__dirname, 'bundle'),
+    showDir: false,
+    showDotfiles: false,
+  });
+
   const server = await createServer(handler);
   const address = getServerAddress(server);
 
@@ -71,20 +86,27 @@ async function main(inputStream) {
   }
 
   function handler(req, res) {
-    if (mock !== null && /^\/mock(\/.*)?$/.test(req.url)) {
+    const pathname = req.url.split('?')[0];
+
+    if (mock !== null && /^\/mock(\/.*)?$/.test(pathname)) {
       mock(req, res);
       return;
     }
 
-    if (req.url === '/__socket') {
+    if (pathname === '/__socket') {
       req.pipe(ws(stream => stream.pipe(process.stdout, { end: false })));
       req.on('end', () => res.end());
       return;
     }
 
-    res.writeHead(200, { 'content-type': 'text/html' });
-    res.write(generateHtml(envbundle, input));
-    res.end();
+    if (pathname === '/') {
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.write(generateHtml(input));
+      res.end();
+      return;
+    }
+
+    serve(req, res);
   }
 }
 
@@ -135,7 +157,7 @@ function readStream(stream) {
   });
 }
 
-function generateHtml(envbundle, input) {
+function generateHtml(input) {
   return `
 <!doctype html>
 <html lang="en">
@@ -144,12 +166,11 @@ function generateHtml(envbundle, input) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
   <title>browser-host</title>
+  <link rel="icon" href="/favicon-96.png" sizes="96x96">
 </head>
 <body>
   <pre id="headless-output"></pre>
-  <script type="text/javascript">
-${envbundle}
-  </script>
+  <script type="text/javascript" src="/reporter.js"></script>
   <script type="text/javascript">
 ${input}
   </script>

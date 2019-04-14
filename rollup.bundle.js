@@ -5,9 +5,9 @@ import globals from 'rollup-plugin-node-globals';
 import resolve from 'rollup-plugin-node-resolve';
 
 export default {
-  input: 'browser/env.js',
+  input: 'browser/reporter.js',
   output: {
-    file: 'bundle/env.js',
+    file: 'bundle/reporter.js',
     format: 'iife',
     indent: false,
   },

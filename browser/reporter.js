@@ -1,21 +1,17 @@
 import { inspect } from 'util';
 import Stream from 'stream';
-import xws from 'xhr-write-stream';
+import createSocket from './socket';
 
-const ws = createSocket();
+const ws = createSocket('/__socket');
 
 const documentWrite = (function () {
-  if (true) {
-    const node = document.getElementById('headless-output') || null;
-    return node !== null ? write : noop;
+  const node = document.getElementById('headless-output') || null;
+  return node !== null ? write : noop;
 
-    function write(message) {
-      const text = document.createTextNode(message + '\n');
-      node.appendChild(text);
-    }
+  function write(message) {
+    const text = document.createTextNode(message + '\n');
+    node.appendChild(text);
   }
-
-  return noop;
 })();
 
 const originalHandleError = window.onerror;
@@ -39,19 +35,6 @@ console.log = consoleLog;
 // -
 
 function noop() {}
-
-function createSocket() {
-  const hostname = window.location.hostname;
-  // bundled http module adds extra [ ] for ipv6 addresses,
-  // so the resulting host looks like [[::]]
-  const host = hostname.indexOf(':') > -1 ? hostname.replace(/^\[|\]$/g, '') : hostname;
-
-  return xws({
-    host: host,
-    port: window.location.port,
-    path: '/__socket',
-  });
-}
 
 function createStream() {
   const s = new Stream();
