@@ -1,6 +1,8 @@
-import { inspect } from 'util';
-import Stream from 'stream';
-import createSocket from './socket';
+'use strict';
+
+const inspect = require('object-inspect');
+const Stream = require('./stream');
+const createSocket = require('./socket');
 
 const ws = createSocket('/__socket');
 

@@ -1,6 +1,8 @@
-import Stream from 'stream';
+'use strict';
 
-export default function createSocket(opts) {
+const Stream = require('./stream');
+
+module.exports = function createSocket(opts) {
   if (typeof opts === 'string') {
     opts = { url: opts };
   }
