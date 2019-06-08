@@ -25,7 +25,7 @@ function serialize (...args) {
   .forEach(method => {
     const old = console[method]
     console[method] = (...args) => {
-      write(serialize(...args) + '\n', { method: 'console.' + method })
+      write(serialize(...args) + '\n')
       if (old) old.apply(console, args)
     }
   })
