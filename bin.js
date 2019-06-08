@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-'use strict';
+'use strict'
 
-process.title = 'browser-host';
+process.title = 'browser-host'
 
 const USAGE = `
   $ browser-host [entry] [options]
@@ -23,141 +23,149 @@ const USAGE = `
   Examples:
 
     $ echo "console.log('hello, world!')" | browser-host
-`;
+`
 
-const fs = require('fs');
-const http = require('http');
-const net = require('net');
-const path = require('path');
-const puppeteer = require('puppeteer');
-const ecstatic = require('ecstatic');
-const util = require('util');
-const xws = require('xhr-write-stream');
+const fs = require('fs')
+const http = require('http')
+const net = require('net')
+const path = require('path')
+const puppeteer = require('puppeteer')
+const ecstatic = require('ecstatic')
+const util = require('util')
+const serverSocket = require('./server-socket')
 
-const minimist = require('minimist');
+const minimist = require('minimist')
 const argv = minimist(process.argv.slice(2), {
   alias: {
     browser: 'b',
-    help: 'h',
+    help: 'h'
   },
   boolean: [
-    'help',
-  ],
-});
+    'help'
+  ]
+})
 
 if (argv.help) {
-  console.log(USAGE);
-  process.exit();
+  console.log(USAGE)
+  process.exit()
 }
 
-const mock = loadMockFn(argv.mock);
+const mock = loadMockFn(argv.mock)
 const entry = argv._.length > 0 && argv._[0] !== '-'
   ? fs.createReadStream(path.resolve(argv._[0]), 'utf8')
-  : process.stdin;
+  : process.stdin
 
-main(entry); // catch possible error
+main(entry)
 
-async function main(inputStream) {
-  const input = await readStream(inputStream);
+async function main (inputStream) {
+  const input = await readStream(inputStream)
 
   if (argv.html) {
-    console.log(generateHtml(envbundle, input));
-    return;
+    console.log(generateHtml(input))
+    return
   }
 
-  const ws = xws();
+  // networkidle0 from puppeteer — ~500ms delay between network requests
+  // should be enough to close the server in time
+  const createSocket = serverSocket.createPool({ timeout: 0 })
   const serve = ecstatic({
     autoIndex: false,
     root: path.resolve(__dirname, 'bundle'),
     showDir: false,
-    showDotfiles: false,
-  });
+    showDotfiles: false
+  })
 
-  const server = await createServer(handler);
-  const address = getServerAddress(server);
+  const server = await createServer(handler)
+  const address = getServerAddress(server)
 
-  const browser = await puppeteer.launch({ headless: !argv.browser });
-  const page = await browser.newPage();
-  await page.goto(address, { waitUntil: 'networkidle0' });
+  const browser = await puppeteer.launch({ headless: !argv.browser })
+  const page = await browser.newPage()
+  await page.goto(address, { waitUntil: 'networkidle0' })
 
   if (!argv.browser) {
-    await browser.close();
-    await server.close();
+    await browser.close()
+    await server.close()
   }
 
-  function handler(req, res) {
-    const pathname = req.url.split('?')[0];
+  function handler (req, res) {
+    const pathname = req.url.split('?')[0]
 
     if (mock !== null && /^\/mock(\/.*)?$/.test(pathname)) {
-      mock(req, res);
-      return;
+      mock(req, res)
+      return
     }
 
     if (pathname === '/__socket') {
-      req.pipe(ws(stream => stream.pipe(process.stdout, { end: false })));
-      req.on('end', () => res.end());
-      return;
+      req.pipe(createSocket(stream => {
+        stream.pipe(process.stdout, { end: false })
+        stream.on('error', message => {
+          process.stdout.write(message)
+          if (!argv.browser) process.exit(1)
+        })
+      }))
+      req.on('end', () => res.end())
+      return
     }
 
     if (pathname === '/') {
-      res.writeHead(200, { 'content-type': 'text/html' });
-      res.write(generateHtml(input));
-      res.end();
-      return;
+      res.writeHead(200, { 'content-type': 'text/html' })
+      res.write(generateHtml(input))
+      res.end()
+      return
     }
 
-    serve(req, res);
+    serve(req, res)
   }
 }
 
-function loadMockFn(mock) {
+function loadMockFn (mock) {
   if (mock === true) {
-    console.log('--mock value should be a path to a module');
-    process.exit(1);
+    console.log('--mock value should be a path to a module')
+    process.exit(1)
   }
 
   if (typeof mock === 'string') {
-    var fn = null;
+    var fn = null
 
     try {
-      fn = require(path.resolve(mock));
+      fn = require(path.resolve(mock))
     } catch (err) {
       if (err.code === 'MODULE_NOT_FOUND') {
-        console.log('Cannot find module, provided via --mock ' + mock);
+        console.log('Cannot find module, provided via --mock ' + mock)
       } else {
-        console.log(err.message);
+        console.log(err.message)
       }
 
-      process.exit(1);
+      process.exit(1)
     }
 
     if (typeof fn !== 'function') {
-      console.log('mock should be defined as "module.exports = function (req, res) { ... }",');
-      console.log('instead got', util.inspect(fn));
-      process.exit(1);
+      console.log('mock should be defined as "module.exports = function (req, res) { ... }",')
+      console.log('instead got', util.inspect(fn))
+      process.exit(1)
     }
 
-    return fn;
+    return fn
   }
 
-  return null;
+  return null
 }
 
-function readStream(stream) {
-  var data = '';
+function readStream (stream) {
+  var data = ''
 
-  stream.resume();
-  stream.setEncoding('utf8');
+  stream.resume()
+  stream.setEncoding('utf8')
 
-  stream.on('data', chunk => data += chunk);
+  stream.on('data', chunk => (data += chunk))
 
   return new Promise((resolve, reject) => {
-    stream.on('end', () => resolve(data));
-    stream.once('error', reject);
-  });
+    stream.on('end', () => resolve(data))
+    stream.once('error', reject)
+  })
 }
 
-function generateHtml(input) {
+function generateHtml (input) {
   return `
 <!doctype html>
 <html lang="en">
@@ -176,47 +184,47 @@ ${input}
   </script>
 </body>
 </html>
-  `.trim();
+  `.trim()
 }
 
-function getServerAddress(server) {
-  var address = server.address();
-  const isUnixSocket = typeof address === 'string';
+function getServerAddress (server) {
+  var address = server.address()
+  const isUnixSocket = typeof address === 'string'
   if (!isUnixSocket) {
     if (address.address.includes(':')) { // ipv6
-      address = `[${address.address}]:${address.port}`;
+      address = `[${address.address}]:${address.port}`
     } else {
-      address = `${address.address}:${address.port}`;
+      address = `${address.address}:${address.port}`
     }
   }
 
-  address = `${(isUnixSocket ? '' : 'http')}://${address}/`;
-  return address;
+  address = `${(isUnixSocket ? '' : 'http')}://${address}/`
+  return address
 }
 
-async function createServer(handler) {
-  const port = await findFreePort();
-  const server = http.createServer(handler);
+async function createServer (handler) {
+  const port = await findFreePort()
+  const server = http.createServer(handler)
 
   return new Promise((resolve, reject) => {
-    server.listen(port, () => resolve(server));
-    server.once('error', reject);
-  });
+    server.listen(port, () => resolve(server))
+    server.once('error', reject)
+  })
 }
 
-function findFreePort() {
-  return new Promise(resolve => getPort(resolve));
+function findFreePort () {
+  return new Promise(resolve => getPort(resolve))
 
-  function getPort(cb) {
+  function getPort (cb) {
     // The Internet Assigned Numbers Authority (IANA) suggests
     // the range 49152 to 65535 for dynamic or private ports.
-    const port = Math.floor((65535 - 49152) * Math.random()) + 49152;
+    const port = Math.floor((65535 - 49152) * Math.random()) + 49152
 
-    const server = net.createServer();
+    const server = net.createServer()
     server.listen(port, () => {
-      server.once('close', () => cb(port));
-      server.close();
-    });
-    server.once('error', () => getPort(cb));
+      server.once('close', () => cb(port))
+      server.close()
+    })
+    server.once('error', () => getPort(cb))
   }
 }

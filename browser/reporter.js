@@ -1,92 +1,50 @@
-import { inspect } from 'util';
-import Stream from 'stream';
-import createSocket from './socket';
+'use strict'
 
-const ws = createSocket('/__socket');
+const inspect = require('object-inspect')
+const createSocket = require('./client-socket')
+const write = createSocket()
 
-const documentWrite = (function () {
-  const node = document.getElementById('headless-output') || null;
-  return node !== null ? write : noop;
-
-  function write(message) {
-    const text = document.createTextNode(message + '\n');
-    node.appendChild(text);
-  }
-})();
-
-const originalHandleError = window.onerror;
-window.onerror = handleError;
-
-if (typeof process === 'undefined') {
-  window.process = {};
-}
-
-process.stdout = createStream();
-process.stderr = createStream();
-process.exit = function () { ws.end(); };
-
-if (typeof console === 'undefined') {
-  window.console = {};
-}
-
-const originalConsoleLog = console.log || noop;
-console.log = consoleLog;
-
-// -
-
-function noop() {}
-
-function createStream() {
-  const s = new Stream();
-
-  s.writable = true;
-  s.write = function (data) {
-    ws.write(String(data));
-  };
-
-  return s;
-}
-
-function consoleLog(message) {
-  var index = 1;
-  var args = arguments;
+function serialize (...args) {
+  var index = 1
+  var message = args[0]
 
   if (typeof message === 'string') {
-    message = message.replace(/(^|[^%])%[sd]/g, function (_, s) {
-      return s + args[index++];
-    });
+    message = message.replace(/(^|[^%])%[sd]/g, (_, s) => s + args[index++])
   } else {
-    message = inspect(message);
+    message = inspect(message)
   }
 
-  for (var i = index; i < args.length; ++i) {
-    message += ' ' + inspect(args[i]);
+  for (; index < args.lengt; ++index) {
+    message += ' ' + inspect(args[index])
   }
 
-  ws.write(message + '\n');
-
-  documentWrite(message);
-  originalConsoleLog.apply(this, arguments);
+  return message
 }
 
-function handleError(msg, url, lineNo, columnNo, error) {
-  var errorType = error && error.name || 'Error';
-  var errorMessage = error && error.message || msg;
-  var message = (error ? errorType + ': ' : '') + errorMessage
-    + ' on line ' + lineNo + (columnNo ? ':' + columnNo : '');
+;['debug', 'dir', 'dirxml', 'error', 'info', 'log', 'table', 'warn']
+  .forEach(method => {
+    const old = console[method]
+    console[method] = (...args) => {
+      write(serialize(...args) + '\n')
+      if (old) old.apply(console, args)
+    }
+  })
 
-  ws.write(message + '\n');
+const olderror = window.onerror
+window.onerror = function (msg, url, lineNo, columnNo, er) {
+  const name = (er && er.name) || 'Error'
+  const message = (er && er.message) || msg
 
-  if (error && error.stack) {
-    const lines = error.stack.split('\n').slice(1);
-    lines.forEach(function (line) {
-      ws.write('  ' + line.replace(url, '').trim() + '\n');
-    });
+  var str = `${(er ? `${name}: ` : '')}${message} on line ${lineNo}`
+  if (columnNo) str += `:${columnNo}`
+
+  if (er && er.stack) {
+    er.stack.split('\n').slice(1).forEach(line => {
+      str += `\n  ${line.replace(url, '').trim()}`
+    })
   }
 
-  if (typeof originalHandleError === 'function') {
-    return originalHandleError.apply(this, arguments);
-  }
-
-  return false;
+  write(str + '\n', { error: true })
+  if (olderror) olderror.apply(window, arguments)
+  return false
 }
