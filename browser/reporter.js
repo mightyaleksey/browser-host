@@ -14,7 +14,7 @@ function serialize (...args) {
     message = inspect(message)
   }
 
-  for (; index < args.lengt; ++index) {
+  for (; index < args.length; ++index) {
     message += ' ' + inspect(args[index])
   }
 
