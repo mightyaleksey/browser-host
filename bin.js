@@ -32,7 +32,7 @@ const path = require('path')
 const puppeteer = require('puppeteer')
 const ecstatic = require('ecstatic')
 const util = require('util')
-const xws = require('xhr-write-stream')
+const serverSocket = require('./server-socket')
 
 const minimist = require('minimist')
 const argv = minimist(process.argv.slice(2), {
@@ -55,7 +55,7 @@ const entry = argv._.length > 0 && argv._[0] !== '-'
   ? fs.createReadStream(path.resolve(argv._[0]), 'utf8')
   : process.stdin
 
-main(entry) // catch possible error
+main(entry)
 
 async function main (inputStream) {
   const input = await readStream(inputStream)
@@ -65,7 +65,9 @@ async function main (inputStream) {
     return
   }
 
-  const ws = xws()
+  // networkidle0 from puppeteer — ~500ms delay between network requests
+  // should be enough to close the server in time
+  const createSocket = serverSocket.createPool({ timeout: 0 })
   const serve = ecstatic({
     autoIndex: false,
     root: path.resolve(__dirname, 'bundle'),
@@ -94,7 +96,13 @@ async function main (inputStream) {
     }
 
     if (pathname === '/__socket') {
-      req.pipe(ws(stream => stream.pipe(process.stdout, { end: false })))
+      req.pipe(createSocket(stream => {
+        stream.pipe(process.stdout, { end: false })
+        stream.on('error', message => {
+          process.stdout.write(message)
+          if (!argv.browser) process.exit(1)
+        })
+      }))
       req.on('end', () => res.end())
       return
     }
