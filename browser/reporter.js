@@ -2,7 +2,14 @@
 
 const inspect = require('object-inspect')
 const createSocket = require('./client-socket')
-const write = createSocket()
+const _write = createSocket()
+
+const outputNode = document.querySelector('#headless-output')
+
+function write (a) {
+  if (outputNode) outputNode.appendChild(document.createTextNode(a))
+  _write(a)
+}
 
 function serialize (...args) {
   var index = 1
